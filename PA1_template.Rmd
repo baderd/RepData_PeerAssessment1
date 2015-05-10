@@ -1,25 +1,154 @@
 ---
 title: "Reproducible Research: Peer Assessment 1"
 output: 
-  html_document:
-    keep_md: true
+html_document:
+keep_md: true
 ---
 
 
 ## Loading and preprocessing the data
 
+Load required packages and read table as "data.table" and enforce type "Date" on corressponding column.
 
+```{r}
+library(lattice)
+library(data.table)
+
+unzip('activity.zip')
+activity= fread('activity.csv')
+activity[, date := as.Date(activity$date)]
+head(activity)
+```
 
 ## What is mean total number of steps taken per day?
+```{r}
+step_sum_per_day= activity[, sum(steps, na.rm=TRUE), by=date]$V1
+
+hist(step_sum_per_day, breaks=10, main='Total number of steps per day')
+
+abline(v=mean(step_sum_per_day), col='blue')
+abline(v=median(step_sum_per_day), col='green')
+legend('topright', 
+             c(paste('mean', signif(mean(step_sum_per_day),2)), 
+                 paste('median', signif(median(step_sum_per_day),2))
+                 ), 
+             col=c('blue','green'), 
+             lwd=2
+             )
+```
 
 
 
 ## What is the average daily activity pattern?
+```{r}
+step_mean_per_interval= activity[, mean(steps, na.rm=TRUE), by=interval]
+
+plot(step_mean_per_interval, 
+    type='l', 
+    main= paste('Number of steps taken per 5min interval as avgeraged over', 
+             length(step_sum_per_day),'days'
+         ),
+    ylab='Mean number of steps'
+    )
+
+pos_max= which.max(step_mean_per_interval[,V1])
+max_interval= step_mean_per_interval[pos_max, interval]
+abline(v= max_interval)
+legend('topright', 
+             paste0('Interval with most steps (', signif(step_mean_per_interval[pos_max, V1],2),
+                            ') \non average: ', max_interval
+                            ),
+             lwd=2
+             )
+```
 
 
 
 ## Imputing missing values
+1. Calculate and report the total number of missing values in the dataset (i.e. the total number of rows with NAs)
 
+Number of intervals without "steps" measured:
+```{r}
+idx_na=is.na(activity[,steps]) 
+sum(idx_na)
+```
+
+2. Devise a strategy for filling in all of the missing values in the dataset. 
+The strategy does not need to be sophisticated. 
+For example, you could use the mean/median for that day, 
+or the mean for that 5-minute interval, etc.
+
+```{r}
+step_means_to_impute= as.double(
+                     step_mean_per_interval[interval== activity[idx_na, interval], V1]
+                     )
+```
+
+3. Create a new dataset that is equal to the original dataset but with the missing data filled in.
+
+```{r}
+activity[,imputed_steps := as.double(activity$steps)]
+activity[idx_na, imputed_steps := step_means_to_impute]
+```
+
+
+4. (a) Make a histogram of the total number of steps taken each day and Calculate and report the mean and median total number of steps taken per day. 
+
+```{r}
+step_sum_per_day= activity[, lapply(.SD, sum, na.rm=TRUE), by=date][,imputed_steps]
+
+hist(step_sum_per_day, breaks=50, main='Total number of steps per day (imputed)')
+
+abline(v=mean(step_sum_per_day), col='blue')
+abline(v=median(step_sum_per_day), col='green')
+legend('topright', 
+             c(paste('mean', signif(mean(step_sum_per_day),2)), 
+                 paste('median', signif(median(step_sum_per_day),2))
+                 ), 
+             col=c('blue','green'), 
+             lwd=2
+             )
+```
+
+4. (b) Do these values differ from the estimates from the first part of the assignment? What is the impact of imputing missing data on the estimates of the total daily number of steps?
+The imputation of missing values increases both mean and median, 
+since the "sum" function treated them as zero before.
 
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+1. Create a new factor variable in the dataset with two levels – “weekday” and “weekend” 
+indicating whether a given date is a weekday or weekend day.
+
+```{r}
+weekend_tag = ifelse(weekdays(activity$date)=='Sunday' | weekdays(activity$date)=='Saturday', 
+                     'weekend', 
+                     'weekday'
+                     )
+activity[, work:= factor(weekend_tag, levels=c('weekend','weekday'))]
+```
+
+
+2. Make a panel plot containing a time series plot (i.e. type = "l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all weekday days or weekend days (y-axis). 
+
+```{r}
+step_mean_per_work_interval= activity[,
+                                      mean(imputed_steps, na.rm=T), 
+                                      by= .(interval,work)
+                                      ]
+
+xyplot(V1 ~ interval|work, 
+       data=step_mean_per_work_interval, 
+       type='l',
+       layout=c(1,2),
+       ylab='Mean number of steps'
+       )
+
+```
+
+Yes, there are differences. During weekdays a clear maximum in the morning can be observed that is also higher than the weekend max. For weekends the activity this distributed over the whole day. 
+
+This info could be used to better impute NAs by weekday.
+
+
+
