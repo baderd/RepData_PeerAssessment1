@@ -17,7 +17,6 @@ library(data.table)
 unzip('activity.zip')
 activity= fread('activity.csv')
 activity[, date := as.Date(activity$date)]
-head(activity)
 ```
 
 ## What is mean total number of steps taken per day?
@@ -29,12 +28,12 @@ hist(step_sum_per_day, breaks=10, main='Total number of steps per day')
 abline(v=mean(step_sum_per_day), col='blue')
 abline(v=median(step_sum_per_day), col='green')
 legend('topright', 
-             c(paste('mean', signif(mean(step_sum_per_day),2)), 
-                 paste('median', signif(median(step_sum_per_day),2))
-                 ), 
-             col=c('blue','green'), 
-             lwd=2
-             )
+         c(paste('mean', signif(mean(step_sum_per_day),2)), 
+             paste('median', signif(median(step_sum_per_day),2))
+             ), 
+         col=c('blue','green'), 
+         lwd=2
+     )
 ```
 
 
@@ -45,8 +44,8 @@ step_mean_per_interval= activity[, mean(steps, na.rm=TRUE), by=interval]
 
 plot(step_mean_per_interval, 
     type='l', 
-    main= paste('Number of steps taken per 5min interval as avgeraged over', 
-             length(step_sum_per_day),'days'
+    main= paste('Number of steps taken per 5min interval \navgeraged over', 
+                length(step_sum_per_day),'days'
          ),
     ylab='Mean number of steps'
     )
@@ -55,11 +54,11 @@ pos_max= which.max(step_mean_per_interval[,V1])
 max_interval= step_mean_per_interval[pos_max, interval]
 abline(v= max_interval)
 legend('topright', 
-             paste0('Interval with most steps (', signif(step_mean_per_interval[pos_max, V1],2),
-                            ') \non average: ', max_interval
-                            ),
-             lwd=2
-             )
+        paste0('Interval with most steps (', signif(step_mean_per_interval[pos_max, V1],2),
+            ') \non average: ', max_interval
+            ),
+        lwd=2
+    )
 ```
 
 
@@ -67,11 +66,11 @@ legend('topright',
 ## Imputing missing values
 1. Calculate and report the total number of missing values in the dataset (i.e. the total number of rows with NAs)
 
-Number of intervals without "steps" measured:
 ```{r}
 idx_na=is.na(activity[,steps]) 
-sum(idx_na)
+num_na=sum(idx_na)
 ```
+Number of intervals without "steps" measured: `r num_na`.
 
 2. Devise a strategy for filling in all of the missing values in the dataset. 
 The strategy does not need to be sophisticated. 
@@ -83,6 +82,7 @@ step_means_to_impute= as.double(
                      step_mean_per_interval[interval== activity[idx_na, interval], V1]
                      )
 ```
+Retrieve the mean steps per interval for every interval, where activity$steps missing values.
 
 3. Create a new dataset that is equal to the original dataset but with the missing data filled in.
 
@@ -90,14 +90,15 @@ step_means_to_impute= as.double(
 activity[,imputed_steps := as.double(activity$steps)]
 activity[idx_na, imputed_steps := step_means_to_impute]
 ```
+Copy the old "steps" column, but as type double. Insert the means per interval at the missing values.
 
 
 4. (a) Make a histogram of the total number of steps taken each day and Calculate and report the mean and median total number of steps taken per day. 
 
 ```{r}
-step_sum_per_day= activity[, lapply(.SD, sum, na.rm=TRUE), by=date][,imputed_steps]
+step_sum_per_day= activity[,  sum(imputed_steps, na.rm=TRUE), by=date][,V1]
 
-hist(step_sum_per_day, breaks=50, main='Total number of steps per day (imputed)')
+hist(step_sum_per_day, breaks=10, main='Total number of steps per day (imputed)')
 
 abline(v=mean(step_sum_per_day), col='blue')
 abline(v=median(step_sum_per_day), col='green')
@@ -113,6 +114,11 @@ legend('topright',
 4. (b) Do these values differ from the estimates from the first part of the assignment? What is the impact of imputing missing data on the estimates of the total daily number of steps?
 The imputation of missing values increases both mean and median, 
 since the "sum" function treated them as zero before.
+
+Yes, mean and median increased compared to raw data. 
+In the "sum per day" computation they were treated as zero before. 
+Now we imputed values>0 and compute the mean/median over same number of elements, 
+consequently it increased.
 
 
 ## Are there differences in activity patterns between weekdays and weekends?
@@ -146,9 +152,9 @@ xyplot(V1 ~ interval|work,
 
 ```
 
-Yes, there are differences. During weekdays a clear maximum in the morning can be observed that is also higher than the weekend max. For weekends the activity this distributed over the whole day. 
+Yes, there are differences. During weekdays a single maximum can be observed  in the morning with low (>100) activity for the remaining day. This weekday max is higher than the weekend max, but for weekends the activity this distributed over the whole day. 
 
-This info could be used to better impute NAs by weekday.
+This info suggests to impute NAs by interval with respect to the weekday.
 
 
 
